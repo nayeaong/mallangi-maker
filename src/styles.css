@@ -1,0 +1,711 @@
+/* ===== 기본 / 토큰 ===== */
+:root {
+  --bg: #fff7f0;
+  --card: #ffffff;
+  --pink: #ff9fcf;
+  --pink-deep: #f2679c;
+  --purple: #d9c7ff;
+  --mint: #bdf7e2;
+  --yellow: #ffe89a;
+  --text: #6b5a52;
+  --shadow: 0 12px 30px rgba(180, 140, 160, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: linear-gradient(160deg, #fff7f0 0%, #ffeef6 45%, #f1ecff 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 18px 60px;
+}
+
+/* ===== 카드 공통 ===== */
+.card {
+  background: var(--card);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+/* ===== 헤더 ===== */
+.header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.title {
+  font-size: 30px;
+  font-weight: 800;
+  margin: 0 0 6px;
+  color: var(--pink-deep);
+  text-shadow: 0 2px 0 #fff, 0 4px 10px rgba(242, 103, 156, 0.18);
+}
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #9d8a85;
+}
+
+/* ===== 미리보기 영역 ===== */
+.preview-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  background: radial-gradient(circle at 50% 35%, #ffffff 0%, #fff3fa 100%);
+  overflow: visible; /* 말랑이를 길게 늘여도 잘리지 않도록 */
+}
+.preview-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #b39c99;
+}
+
+/* 말랑이가 놓이는 무대 */
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  user-select: none;
+  touch-action: none; /* 터치 드래그 시 스크롤 방지 */
+}
+
+/* 변형 가능한 SVG 말랑이 캔버스 */
+.blob-canvas {
+  position: relative;
+  touch-action: none;
+}
+
+/* SVG 반짝이 입자(깜빡임) */
+.sparkle-svg {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: twinkle-svg 1.6s ease-in-out infinite;
+}
+@keyframes twinkle-svg {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.6) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(45deg);
+  }
+}
+
+/* ===== 말랑이 본체 ===== */
+.blob {
+  position: relative;
+  background: var(--mallangi-color, #ffd6e8);
+  box-shadow:
+    inset -10px -16px 28px rgba(0, 0, 0, 0.08),
+    inset 8px 10px 22px rgba(255, 255, 255, 0.55),
+    0 18px 30px rgba(0, 0, 0, 0.12);
+  touch-action: none;
+  will-change: transform;
+}
+
+/* 모양별 형태 */
+.blob--hobbang {
+  width: 240px;
+  height: 212px;
+  border-radius: 50%;
+}
+.blob--pudding {
+  width: 244px;
+  height: 210px;
+  border-radius: 30px;
+  /* 위가 좁고 아래가 넓은 사다리꼴 */
+  clip-path: polygon(17% 2%, 83% 2%, 100% 100%, 0% 100%);
+}
+.blob--butter {
+  width: 268px;
+  height: 152px;
+  border-radius: 36px;
+}
+.blob--bear {
+  width: 206px;
+  height: 190px;
+  border-radius: 48% 48% 46% 46%;
+}
+.blob--cheese {
+  width: 210px;
+  height: 210px;
+  border-radius: 26px;
+}
+.blob--corn {
+  width: 150px;
+  height: 224px;
+  border-radius: 50% 50% 46% 46% / 40% 40% 60% 60%;
+}
+
+/* ===== 치즈 구멍 ===== */
+.cheese-hole {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.14);
+  box-shadow: inset 2px 3px 4px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+
+/* ===== 옥수수 알갱이 무늬 + 껍질잎 ===== */
+.corn-kernels {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit; /* 알갱이 무늬를 본체 모양으로 클립 */
+  overflow: hidden;
+  pointer-events: none;
+  /* 볼록한 알갱이 격자 느낌 */
+  background-image:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.45) 3px, rgba(255, 255, 255, 0) 5px),
+    radial-gradient(circle at center, rgba(0, 0, 0, 0.08) 6px, rgba(0, 0, 0, 0) 7px);
+  background-size: 22px 19px;
+  background-position: 0 0, 11px 9px;
+}
+.corn-leaf {
+  position: absolute;
+  bottom: -4px;
+  width: 40px;
+  height: 70px;
+  background: linear-gradient(160deg, #9bdb7a, #6cbf57);
+  border-radius: 0 80% 0 80%;
+  pointer-events: none;
+}
+.corn-leaf--l {
+  left: 6px;
+  transform: rotate(14deg);
+}
+.corn-leaf--r {
+  right: 6px;
+  transform: scaleX(-1) rotate(14deg);
+}
+
+/* 광택 하이라이트 */
+.gloss {
+  position: absolute;
+  top: 14%;
+  left: 18%;
+  width: 40%;
+  height: 28%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ===== 곰돌이 귀 / 얼굴 ===== */
+.bear-ear {
+  position: absolute;
+  width: 74px;
+  height: 74px;
+  top: -28px;
+  border-radius: 50%;
+  background: var(--mallangi-color, #ffd6e8);
+  box-shadow: inset -4px -6px 12px rgba(0, 0, 0, 0.08);
+}
+.bear-ear--l {
+  left: -8px;
+}
+.bear-ear--r {
+  right: -8px;
+}
+.bear-eye {
+  position: absolute;
+  width: 14px;
+  height: 18px;
+  top: 40%;
+  background: #5b4636;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.bear-eye--l {
+  left: 33%;
+}
+.bear-eye--r {
+  right: 33%;
+}
+.bear-snout {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  transform: translateX(-50%);
+  width: 66px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.bear-nose {
+  position: absolute;
+  left: 50%;
+  top: 26%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 11px;
+  background: #5b4636;
+  border-radius: 50%;
+}
+
+/* ===== 토핑 ===== */
+.topping-anchor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.topping-jiggle {
+  display: inline-block;
+  will-change: transform;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.12));
+}
+
+/* ===== 옵션 (두 컬럼) ===== */
+.options {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.options-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.option-title {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.count-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pink-deep);
+  background: #ffe3f0;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+/* 칩(모양/토핑 선택) */
+.chip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.chip {
+  position: relative;
+  border: 2px solid #f0e6ee;
+  background: #fffafc;
+  border-radius: 18px;
+  padding: 12px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+  color: var(--text);
+}
+.chip:hover {
+  transform: translateY(-2px);
+}
+.chip:active {
+  transform: scale(0.96);
+}
+.chip--active {
+  border-color: var(--pink);
+  background: #fff0f7;
+  box-shadow: 0 6px 16px rgba(255, 159, 207, 0.35);
+}
+.chip-emoji {
+  font-size: 26px;
+}
+.chip-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+.chip-desc {
+  font-size: 11px;
+  color: #b39c99;
+}
+.chip-check {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--pink-deep);
+}
+
+/* ===== 색상 ===== */
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.color-input-wrap {
+  display: inline-flex;
+}
+input[type='color'] {
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 18px;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type='color']::-webkit-color-swatch {
+  border: 3px solid #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.hex-value {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #7c6b64;
+}
+.preset-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.swatch:hover {
+  transform: scale(1.12);
+}
+.swatch--active {
+  outline: 3px solid var(--pink-deep);
+  outline-offset: 1px;
+}
+
+/* ===== 점도 슬라이더 ===== */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--mint), var(--yellow), var(--pink));
+  outline: none;
+  margin: 4px 0 10px;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--pink);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.range::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--pink);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.range-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #b39c99;
+}
+.range-labels strong {
+  color: var(--pink-deep);
+  font-size: 13px;
+}
+
+/* ===== 반짝이 & 투명도 ===== */
+.finish-row {
+  margin-bottom: 14px;
+}
+.finish-row:last-child {
+  margin-bottom: 0;
+}
+.finish-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.range--sparkle {
+  background: linear-gradient(90deg, #f4eef2, #ffe89a, #ffd54a);
+}
+.range--glass {
+  background: linear-gradient(90deg, #d4c2ff, #cfeffe, rgba(255, 255, 255, 0.4));
+}
+
+/* 반짝이 입자 (4각 별 모양 + 깜빡임) */
+.sparkle {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  background: #fff;
+  clip-path: polygon(50% 0%, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0% 50%, 42% 42%);
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.9));
+  pointer-events: none;
+  animation: twinkle 1.6s ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translate(-50%, -50%) scale(0.6) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1) rotate(45deg);
+  }
+}
+
+/* ===== 말랑이 위 이름표 ===== */
+.name-on-top {
+  width: 82%;
+  max-width: 320px;
+  text-align: center;
+  border: none;
+  border-bottom: 2px dashed #f0c5dd;
+  background: transparent;
+  font-family: inherit;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--pink-deep);
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  outline: none;
+}
+.name-on-top::placeholder {
+  color: #e6bcd1;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+/* ===== 담그기 선택(3열) ===== */
+.coat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* 담그기 마감 오버레이 */
+.coat {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit; /* 본체 모서리를 그대로 따라감 */
+  pointer-events: none;
+}
+/* 물: 촉촉한 윤기 + 반사 */
+.coat--water {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 40%),
+    radial-gradient(circle at 72% 78%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 45%),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 55%);
+  box-shadow: inset 0 -10px 18px rgba(255, 255, 255, 0.28);
+}
+/* 파우더: 뽀송한 매트 + 미세 입자 */
+.coat--powder {
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.6) 0.8px, transparent 1.4px) 0 0 / 6px 6px,
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.22) 75%);
+}
+/* 파우더면 광택을 흐리게 */
+.gloss--matte {
+  opacity: 0.22;
+}
+
+/* ===== 버튼 ===== */
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 14px 22px;
+  font-size: 15px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn--primary {
+  background: linear-gradient(135deg, #ffb0d8, #ff8cc2);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(255, 140, 194, 0.45);
+}
+.btn--primary:hover {
+  filter: brightness(1.04);
+}
+.btn--primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn--ghost {
+  background: #f4eef2;
+  color: #8a7872;
+}
+.action-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.complete-btn {
+  flex: 1;
+  font-size: 17px;
+  padding: 16px;
+}
+.reset-btn {
+  flex: 0 0 auto;
+  font-size: 15px;
+  padding: 16px 20px;
+}
+
+/* ===== 토스트 안내 ===== */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  background: rgba(107, 90, 82, 0.95);
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  z-index: 50;
+  animation: toast-in 0.25s ease;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ===== 모달 ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(120, 90, 110, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 100;
+  animation: toast-in 0.2s ease;
+}
+.modal {
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+.modal-title {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--pink-deep);
+}
+.name-input,
+.range,
+input[type='color'] {
+  font-family: inherit;
+}
+.name-input {
+  width: 100%;
+  border: 2px solid #f0e6ee;
+  border-radius: 16px;
+  padding: 13px 16px;
+  font-size: 15px;
+  text-align: center;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.name-input:focus {
+  border-color: var(--pink);
+}
+.capture {
+  margin: 16px 0;
+  padding: 10px;
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 35%, #ffffff 0%, #fff3fa 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.capture-name {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--pink-deep);
+}
+.modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ===== 반응형 ===== */
+@media (max-width: 480px) {
+  .title {
+    font-size: 24px;
+  }
+  .options {
+    flex-direction: column;
+  }
+  .stage {
+    transform: scale(0.92);
+  }
+}
