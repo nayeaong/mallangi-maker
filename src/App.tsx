@@ -6,8 +6,22 @@ import FinishSelector from './components/FinishSelector';
 import CoatingSelector from './components/CoatingSelector';
 import ToppingSelector from './components/ToppingSelector';
 import ViscositySlider from './components/ViscositySlider';
+import WaxControl from './components/WaxControl';
 import CompleteModal from './components/CompleteModal';
-import { DEFAULT_CONFIG, type CoatingId, type ShapeId, type ToppingId } from './types';
+import { DEFAULT_CONFIG, type CoatingId, type ShapeId, type ToppingId, type WaxDebrisPiece } from './types';
+
+// 왁스 깨짐 시 파편 생성(겹수가 많을수록 더 많고 큰 조각)
+function makeWaxDebris(layers: number): WaxDebrisPiece[] {
+  const n = Math.round(6 + layers * 2);
+  const base = 5 + layers * 1.6;
+  return Array.from({ length: n }, (_, i) => ({
+    id: i,
+    x: 10 + Math.random() * 80,
+    y: 8 + Math.random() * 84,
+    size: base * (0.6 + Math.random() * 0.9),
+    rot: Math.random() * 360,
+  }));
+}
 
 export default function App() {
   // ── 말랑이 설정 상태 ──
@@ -18,6 +32,23 @@ export default function App() {
   const [sparkle, setSparkle] = useState<number>(DEFAULT_CONFIG.sparkle);
   const [translucency, setTranslucency] = useState<number>(DEFAULT_CONFIG.translucency);
   const [coating, setCoating] = useState<CoatingId>(DEFAULT_CONFIG.coating);
+  // ── 왁스 ──
+  const [waxLayers, setWaxLayers] = useState<number>(DEFAULT_CONFIG.waxLayers);
+  const [isWaxBroken, setWaxBroken] = useState<boolean>(DEFAULT_CONFIG.isWaxBroken);
+  const [waxDebris, setWaxDebris] = useState<WaxDebrisPiece[]>(DEFAULT_CONFIG.waxDebris);
+
+  // 슬라이더로 왁스 겹수를 바꾸면 새 코팅 상태로 초기화(깨짐/파편 리셋)
+  const changeWax = (v: number) => {
+    setWaxLayers(v);
+    setWaxBroken(false);
+    setWaxDebris([]);
+  };
+  // 두 손 압축으로 왁스가 깨졌을 때
+  const handleWaxBreak = () => {
+    if (isWaxBroken) return;
+    setWaxBroken(true);
+    setWaxDebris(makeWaxDebris(waxLayers));
+  };
 
   // ── 모달 / 이름 / 안내 메시지 ──
   const [isModalOpen, setModalOpen] = useState(false);
@@ -52,6 +83,9 @@ export default function App() {
     setSparkle(DEFAULT_CONFIG.sparkle);
     setTranslucency(DEFAULT_CONFIG.translucency);
     setCoating(DEFAULT_CONFIG.coating);
+    setWaxLayers(DEFAULT_CONFIG.waxLayers);
+    setWaxBroken(DEFAULT_CONFIG.isWaxBroken);
+    setWaxDebris(DEFAULT_CONFIG.waxDebris);
     setMallangiName('');
     setModalOpen(false);
   };
@@ -64,6 +98,9 @@ export default function App() {
     sparkle,
     translucency,
     coating,
+    waxLayers,
+    isWaxBroken,
+    waxDebris,
   };
 
   return (
@@ -93,7 +130,15 @@ export default function App() {
           sparkle={sparkle}
           translucency={translucency}
           coating={coating}
+          waxLayers={waxLayers}
+          isWaxBroken={isWaxBroken}
+          waxDebris={waxDebris}
+          onWaxBreak={handleWaxBreak}
         />
+        {/* 왁스가 발려 있고 아직 안 깨졌으면 안내 말풍선 */}
+        {waxLayers >= 1 && !isWaxBroken && (
+          <div className="wax-hint">두 손으로 말랑이를 꾹 눌러 뿌셔보세요! 🙌</div>
+        )}
         <p className="preview-hint">👆 말랑이를 끌어당겨 만져보세요!</p>
       </main>
 
@@ -108,6 +153,7 @@ export default function App() {
             onTranslucencyChange={setTranslucency}
           />
           <ToppingSelector value={selectedToppings} onToggle={toggleTopping} />
+          <WaxControl value={waxLayers} onChange={changeWax} />
         </div>
         <div className="options-col">
           <ColorPicker value={selectedColor} onChange={setSelectedColor} />

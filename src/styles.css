@@ -481,6 +481,80 @@ input[type='color']::-webkit-color-swatch {
 .range--glass {
   background: linear-gradient(90deg, #d4c2ff, #cfeffe, rgba(255, 255, 255, 0.4));
 }
+.range--wax {
+  background: linear-gradient(90deg, #fff7ec, #f3e8cf, #e6d4a8);
+}
+
+/* ===== 왁스 안내 말풍선 ===== */
+.wax-hint {
+  position: relative;
+  margin: 6px auto 0;
+  max-width: 90%;
+  background: #fff5d9;
+  color: #8a6f3a;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 9px 16px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(200, 170, 110, 0.25);
+  text-align: center;
+  animation: toast-in 0.25s ease;
+}
+.wax-hint::after {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 8px solid #fff5d9;
+}
+
+/* ===== 왁스 깨짐 효과 ===== */
+.wax-crack {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wax-crack-flash 0.6s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes wax-crack-flash {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+.asmr-pop {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  font-size: 30px;
+  font-weight: 900;
+  color: #b98a3a;
+  text-shadow: 0 2px 0 #fff, 0 4px 10px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  animation: asmr-pop 1s ease-out forwards;
+  z-index: 5;
+}
+@keyframes asmr-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.6) rotate(-6deg);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1.15) rotate(4deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -30px) scale(1) rotate(-2deg);
+  }
+}
 
 /* 반짝이 입자 (4각 별 모양 + 깜빡임) */
 .sparkle {

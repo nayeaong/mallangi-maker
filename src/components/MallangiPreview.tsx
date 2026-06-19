@@ -3,10 +3,11 @@ import {
   useId,
   useReducer,
   useRef,
+  useState,
   type CSSProperties,
   type PointerEvent,
 } from 'react';
-import type { CoatingId, ShapeId, ToppingId } from '../types';
+import type { CoatingId, ShapeId, ToppingId, WaxDebrisPiece } from '../types';
 import { playCrunch } from '../crunch';
 
 interface Props {
@@ -17,6 +18,10 @@ interface Props {
   sparkle: number; // 반짝이 정도 0~10
   translucency: number; // 반투명 정도 0~10
   coating: CoatingId; // 담그기 마감
+  waxLayers?: number; // 왁스 겹수 0~10
+  isWaxBroken?: boolean; // 왁스 깨짐 여부
+  waxDebris?: WaxDebrisPiece[]; // 부서진 왁스 파편
+  onWaxBreak?: () => void; // 왁스가 깨질 때 알림(두 손 압축)
   interactive?: boolean; // 모달의 정적 미리보기 등에서는 드래그를 끈다
   scale?: number; // 전체 크기 배율
 }
@@ -162,6 +167,11 @@ function toPath(pts: Pt[]): string {
   return d + 'Z';
 }
 
+// 왁스 파편 한 조각의 거친 다각형 path
+function shardPath(s: number): string {
+  return `M${(-s).toFixed(1)},${(-s * 0.6).toFixed(1)} L${(s * 0.8).toFixed(1)},${(-s).toFixed(1)} L${s.toFixed(1)},${(s * 0.7).toFixed(1)} L${(-s * 0.7).toFixed(1)},${s.toFixed(1)} Z`;
+}
+
 // 토핑 한 조각 (SVG 그룹). 중심(0,0) 기준으로 그린다.
 function ToppingShape({ type }: { type: ToppingId }) {
   switch (type) {
@@ -230,6 +240,36 @@ function ToppingShape({ type }: { type: ToppingId }) {
           </g>
         </>
       );
+    case 'pearl':
+      // 작고 둥근 진주/비즈 무리 (흰색·아이보리·연핑크) + 은은한 반짝임
+      return (
+        <>
+          {[
+            { x: -6, y: -3, r: 5.5, c: '#ffffff' },
+            { x: 5, y: -5, r: 4.5, c: '#fdeef2' },
+            { x: 6, y: 4, r: 6, c: '#f7f3e8' },
+            { x: -4, y: 6, r: 4, c: '#ffe6ef' },
+          ].map((p, i) => (
+            <g key={i} transform={`translate(${p.x},${p.y})`}>
+              <circle r={p.r} fill={p.c} stroke="rgba(0,0,0,0.06)" strokeWidth="0.6" />
+              <circle cx={-p.r * 0.35} cy={-p.r * 0.35} r={p.r * 0.3} fill="rgba(255,255,255,0.95)" />
+            </g>
+          ))}
+        </>
+      );
+    case 'fruitring':
+      // 반투명한 알록달록 후르츠링(도넛/링)
+      return (
+        <>
+          {[
+            { x: -5, y: -3, c: '#ff8fb8' },
+            { x: 6, y: -1, c: '#7fb3ff' },
+            { x: -1, y: 6, c: '#ffd54a' },
+          ].map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="6" fill="none" stroke={p.c} strokeWidth="3.4" opacity="0.6" />
+          ))}
+        </>
+      );
   }
 }
 
@@ -241,34 +281,59 @@ export default function MallangiPreview({
   sparkle,
   translucency,
   coating,
+  waxLayers = 0,
+  isWaxBroken = false,
+  waxDebris = [],
+  onWaxBreak,
   interactive = true,
   scale = 1,
 }: Props) {
   const uid = useId().replace(/:/g, '');
   const geo = getGeo(shape);
 
-  // 변형 상태(refs로 관리하고 force로 렌더만 트리거 → 매 프레임 갱신)
+  // 단일 포인터 드래그(기존) 상태
   const pullRef = useRef<Pt>({ x: 0, y: 0 }); // 현재 당김 벡터(좌표계 단위)
   const velRef = useRef<Pt>({ x: 0, y: 0 }); // 복원 스프링 속도
   const grabRef = useRef<Pt>({ x: 0, y: 0 }); // 잡은 지점(좌표계 단위)
-  const startRef = useRef({ x: 0, y: 0 }); // 누른 시점 클라이언트 좌표
-  const ratioRef = useRef({ sx: 1, sy: 1 }); // 화면px → 좌표계 변환비
   const draggingRef = useRef(false);
+  // 여러 포인터(두 손) 추적
+  const pointersRef = useRef<Map<number, Pt>>(new Map());
+  const multiRef = useRef({ baseDist: 0, stretch: 0, angle: 0, mx: 0, my: 0 });
+  const rectRef = useRef({ left: 0, top: 0 });
+  const ratioRef = useRef({ sx: 1, sy: 1 }); // 화면px → 좌표계 변환비
   const rafRef = useRef(0);
+  const brokeFiredRef = useRef(false);
+  const fxKeyRef = useRef(1);
+  const fxTimer = useRef<number | undefined>(undefined);
+  const [fx, setFx] = useState<{ asmr: string; key: number } | null>(null);
   const [, force] = useReducer((c) => c + 1, 0);
 
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(rafRef.current);
+      window.clearTimeout(fxTimer.current);
+    },
+    [],
+  );
+  // 왁스가 다시 멀쩡해지면(슬라이더 변경 등) 깨짐 1회 발동 플래그 리셋
+  useEffect(() => {
+    if (!isWaxBroken) brokeFiredRef.current = false;
+  }, [isWaxBroken, waxLayers]);
 
   const pull = pullRef.current;
   const G = grabRef.current;
   const sigma = geo.sigma;
 
-  // 변형장: 한 점이 잡은 지점에서 가까울수록(가우시안) 커서를 더 많이 따라간다.
-  // 멀수록 거의 제자리 → "잡은 곳만" 늘어나고 통째로 늘어나지 않는다.
-  // 점도에 따른 늘어남 정도: 낮으면 쭉쭉(>1), 높으면 단단(밀도감↑).
+  // ── 왁스가 점도/촉감에 주는 영향(왁스가 깨지지 않은 동안만) ──
+  const waxActive = waxLayers > 0 && !isWaxBroken;
+  const waxStretchScale = waxActive ? Math.max(0, 1 - waxLayers / 10) : 1; // 10겹 → 0(잠금)
+  const effVisc = waxActive ? Math.min(10, viscosity + waxLayers * 0.6) : viscosity; // 왁스가 더 딱딱하게
+
+  // 점도 기반 늘어남 정도(기존 그대로) × 왁스 코팅(딱딱함)
   const viscFactor = 1.4 - (viscosity - 1) * 0.085; // v1≈1.4, v10≈0.635
-  const epx = pull.x * viscFactor;
-  const epy = pull.y * viscFactor;
+  const defFactor = viscFactor * waxStretchScale; // 왁스가 두꺼울수록 덜 늘어나고 10겹이면 0
+  const epx = pull.x * defFactor;
+  const epy = pull.y * defFactor;
   const offset = (x: number, y: number): Pt => {
     const ddx = x - G.x;
     const ddy = y - G.y;
@@ -297,6 +362,9 @@ export default function MallangiPreview({
   const darkStop = `rgba(${shade(rgb, -42).join(',')}, ${alpha})`; // 그늘진 부분
   // 윤곽선은 아주 옅게(말랑한 느낌). 진한 테두리 대신 음영으로 형태를 표현.
   const strokeCol = `rgba(${shade(rgb, -20).join(',')}, ${Math.min(0.32, alpha * 0.35)})`;
+
+  // 왁스 코팅 불투명도(겹수에 따라 점점 불투명) — 색은 바꾸지 않고 위에 덮는 레이어
+  const waxAlpha = Math.min(0.92, waxLayers * 0.09 + 0.04);
 
   // 담그기 마감 필터(질감)
   const coatFilter =
@@ -340,47 +408,84 @@ export default function MallangiPreview({
   const bodyId = `body-${uid}`;
   const glossId = `gloss-${uid}`;
 
-  // ── 포인터 이벤트 ──
-  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (!interactive) return;
-    cancelAnimationFrame(rafRef.current);
-    velRef.current = { x: 0, y: 0 };
-    playCrunch(toppings.length); // 만질 때마다 콰작
-    const rect = e.currentTarget.getBoundingClientRect();
-    ratioRef.current = { sx: geo.cw / rect.width, sy: geo.ch / rect.height };
-    grabRef.current = {
-      x: (e.clientX - rect.left) * ratioRef.current.sx,
-      y: (e.clientY - rect.top) * ratioRef.current.sy,
-    };
-    startRef.current = { x: e.clientX, y: e.clientY };
-    pullRef.current = { x: 0, y: 0 };
-    draggingRef.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    force();
+  // ── 두 손(멀티포인터) 변형 transform ──
+  const multiActive = pointersRef.current.size >= 2;
+  const m = multiRef.current;
+  const ma = (m.angle * 180) / Math.PI;
+  const msx = 1 + m.stretch;
+  const msy = 1 - m.stretch * 0.4;
+  const multiTransform = `translate(${m.mx.toFixed(2)}px, ${m.my.toFixed(2)}px) rotate(${ma.toFixed(2)}deg) scale(${msx.toFixed(3)}, ${msy.toFixed(3)}) rotate(${(-ma).toFixed(2)}deg) translate(${(-m.mx).toFixed(2)}px, ${(-m.my).toFixed(2)}px)`;
+  const mDur = (0.35 + effVisc * 0.09).toFixed(2);
+  const mOver = (2.2 - effVisc * 0.13).toFixed(2);
+  const wrapStyle: CSSProperties = {
+    transform: multiTransform,
+    transition: multiActive ? 'none' : `transform ${mDur}s cubic-bezier(0.34, ${mOver}, 0.3, 1)`,
   };
-  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (!draggingRef.current) return;
-    let px = (e.clientX - startRef.current.x) * ratioRef.current.sx;
-    let py = (e.clientY - startRef.current.y) * ratioRef.current.sy;
-    // 실제 변형량(= 당김 × viscFactor)이 여백(M) 안에 들어오도록 당김을 제한.
-    // → 화면 밖으로 안 나가고, 표면이 자기를 넘어 접히지도 않는다.
-    // 꾸덕(viscFactor<1)은 변형 상한 자체를 낮춰 덜 늘어나게(밀도감) 한다.
-    const cap = (M - 16) * Math.min(1, viscFactor); // 변형 상한
-    const maxPull = cap / viscFactor; // 허용 당김 거리
+
+  // ── 포인터 좌표 변환 ──
+  const toCanvas = (clientX: number, clientY: number): Pt => ({
+    x: (clientX - rectRef.current.left) * ratioRef.current.sx,
+    y: (clientY - rectRef.current.top) * ratioRef.current.sy,
+  });
+
+  // 두 손 압축으로 왁스가 깨질 때
+  const triggerBreak = () => {
+    onWaxBreak?.();
+    playCrunch(Math.min(6, Math.max(2, Math.round(waxLayers / 1.5)))); // 기존 효과음 재사용
+    const words = ['파삭', '쩍', '콰작', '우두둑'];
+    const w = words[Math.floor(Math.random() * words.length)];
+    setFx({ asmr: w, key: fxKeyRef.current++ });
+    window.clearTimeout(fxTimer.current);
+    fxTimer.current = window.setTimeout(() => setFx(null), 1000);
+  };
+
+  // 단일 포인터 드래그 갱신(기존 촉감 유지)
+  const updateSingle = () => {
+    const p = pointersRef.current.values().next().value;
+    if (!p) return;
+    let px = p.x - grabRef.current.x;
+    let py = p.y - grabRef.current.y;
+    const cap = (M - 16) * Math.min(1, defFactor);
+    const maxPull = defFactor > 0.001 ? cap / defFactor : 0;
     const mag = Math.hypot(px, py);
-    if (mag > maxPull) {
+    if (maxPull === 0) {
+      px = 0;
+      py = 0;
+    } else if (mag > maxPull) {
       px *= maxPull / mag;
       py *= maxPull / mag;
     }
     pullRef.current = { x: px, y: py };
-    force();
   };
-  const onPointerEnd = () => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    // 점도 기반 스프링 복원: 점도 낮으면 빠르고 통통, 높으면 느리고 묵직(꾸덕)
-    const stiff = 0.3 - viscosity * 0.022; // v1≈0.28, v10≈0.08 (꾸덕할수록 느릿)
-    const damp = 0.9 - viscosity * 0.045; // v1≈0.855(통통) ~ v10≈0.45(밀도감/반동없음)
+
+  // 두 손 변형 갱신
+  const updateMulti = () => {
+    const arr = Array.from(pointersRef.current.values());
+    const a = arr[0];
+    const b = arr[1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1) return;
+    if (m.baseDist === 0) m.baseDist = d;
+    m.mx = (a.x + b.x) / 2;
+    m.my = (a.y + b.y) / 2;
+    m.angle = Math.atan2(dy, dx);
+    const ratio = (d - m.baseDist) / m.baseDist; // 벌리면 +, 모으면 -
+    const softness = 0.4 + 0.4 * (viscFactor / 1.4);
+    m.stretch = Math.max(-0.5, Math.min(0.9, ratio)) * softness * waxStretchScale;
+    // 압축(squeeze)이 임계를 넘으면 왁스가 깨짐
+    const squeeze = m.baseDist - d;
+    if (onWaxBreak && waxLayers >= 1 && !isWaxBroken && !brokeFiredRef.current && squeeze > Math.max(40, m.baseDist * 0.16)) {
+      brokeFiredRef.current = true;
+      triggerBreak();
+    }
+  };
+
+  // 모두 떼면 점도 기반 스프링으로 복원(기존 로직 + 왁스 반영 effVisc)
+  const startSpring = () => {
+    const stiff = 0.3 - effVisc * 0.022;
+    const damp = 0.9 - effVisc * 0.045;
     const step = () => {
       const p = pullRef.current;
       const v = velRef.current;
@@ -400,6 +505,67 @@ export default function MallangiPreview({
       rafRef.current = requestAnimationFrame(step);
     };
     rafRef.current = requestAnimationFrame(step);
+  };
+
+  // ── 포인터 이벤트(여러 포인터 동시 추적) ──
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!interactive) return;
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const r = el.getBoundingClientRect();
+    rectRef.current = { left: r.left, top: r.top };
+    ratioRef.current = { sx: geo.cw / r.width, sy: geo.ch / r.height };
+    pointersRef.current.set(e.pointerId, toCanvas(e.clientX, e.clientY));
+    cancelAnimationFrame(rafRef.current);
+    velRef.current = { x: 0, y: 0 };
+    playCrunch(toppings.length); // 만질 때마다 콰작
+    if (pointersRef.current.size >= 2) {
+      // 두 손 모드 진입
+      draggingRef.current = false;
+      pullRef.current = { x: 0, y: 0 };
+      m.baseDist = 0;
+    } else {
+      // 한 손 드래그(기존)
+      grabRef.current = { ...pointersRef.current.get(e.pointerId)! };
+      pullRef.current = { x: 0, y: 0 };
+      draggingRef.current = true;
+    }
+    force();
+  };
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (!interactive) return;
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, toCanvas(e.clientX, e.clientY));
+    if (pointersRef.current.size >= 2) updateMulti();
+    else if (draggingRef.current) updateSingle();
+    force();
+  };
+  const onPointerEnd = (e: PointerEvent<HTMLDivElement>) => {
+    if (!interactive) return;
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.delete(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+    const size = pointersRef.current.size;
+    if (size >= 2) {
+      m.baseDist = 0; // 남은 두 손가락 기준 재설정
+    } else if (size === 1) {
+      // 2→1: 두 손 변형은 복원하고, 남은 손가락으로 한 손 드래그 이어가기
+      m.stretch = 0;
+      m.baseDist = 0;
+      grabRef.current = { ...pointersRef.current.values().next().value! };
+      pullRef.current = { x: 0, y: 0 };
+      draggingRef.current = true;
+    } else {
+      // 모두 뗌 → 복원
+      draggingRef.current = false;
+      m.stretch = 0;
+      startSpring();
+    }
+    force();
   };
 
   // 곰돌이 귀 y 위치(캔버스 좌표)
@@ -439,127 +605,178 @@ export default function MallangiPreview({
             </radialGradient>
           </defs>
 
-          {/* 곰돌이 귀(몸통 뒤에 그려서 자연스럽게 붙음) */}
-          {shape === 'bear' && (
-            <>
-              <g transform={anchored(geo.cx - 66, earY)}>
-                <circle r="36" fill={baseStop} stroke={strokeCol} strokeWidth="1" />
-              </g>
-              <g transform={anchored(geo.cx + 66, earY)}>
-                <circle r="36" fill={baseStop} stroke={strokeCol} strokeWidth="1" />
-              </g>
-            </>
-          )}
-
-          {/* 본체 */}
-          <path d={pathD} fill={`url(#${bodyId})`} stroke={strokeCol} strokeWidth="1" />
-
-          {/* 본체 모양으로 클립되는 내부 요소들 */}
-          <g clipPath={`url(#${clipId})`}>
-            {/* 아래쪽 그늘로 부피감 */}
-            <rect x="0" y="0" width={geo.cw} height={geo.ch} fill={`url(#shade-${uid})`} />
-            {/* 옥수수 알갱이 무늬 */}
-            {shape === 'corn' &&
-              Array.from({ length: 11 }).map((_, row) =>
-                Array.from({ length: 5 }).map((__, col) => {
-                  const x = geo.cx - 60 + col * 30 + (row % 2 ? 15 : 0);
-                  const y = geo.cy - 110 + row * 21;
-                  return (
-                    <g key={`k-${row}-${col}`} transform={anchored(x, y)}>
-                      <ellipse rx="11" ry="9" fill="rgba(255,255,255,0.32)" stroke="rgba(0,0,0,0.06)" strokeWidth="1" />
-                    </g>
-                  );
-                }),
-              )}
-
-            {/* 치즈 구멍 */}
-            {shape === 'cheese' && (
-              <>
-                {[
-                  { x: -34, y: -28, r: 14 }, { x: 30, y: -38, r: 9 }, { x: 6, y: 18, r: 16 },
-                  { x: 44, y: 30, r: 10 }, { x: -30, y: 36, r: 8 },
-                ].map((h, i) => (
-                  <g key={`h-${i}`} transform={anchored(geo.cx + h.x, geo.cy + h.y)}>
-                    <circle r={h.r} fill="rgba(0,0,0,0.16)" />
-                    <circle r={h.r} cy="-1.5" fill="rgba(0,0,0,0.10)" />
-                  </g>
-                ))}
-              </>
-            )}
-
-            {/* 광택(파우더면 흐리게) */}
-            <g transform={anchored(geo.cx - geo.hw * 0.32, geo.cy - geo.hh * 0.42)} opacity={coating === 'powder' ? 0.22 : 1}>
-              <ellipse rx={geo.hw * 0.42} ry={geo.hh * 0.3} fill={`url(#${glossId})`} />
-            </g>
-
-            {/* 담그기: 물 = 촉촉한 강한 윤기/반사 */}
-            {coating === 'water' && (
-              <>
-                <g transform={anchored(geo.cx - geo.hw * 0.28, geo.cy - geo.hh * 0.42)}>
-                  <ellipse rx={geo.hw * 0.52} ry={geo.hh * 0.36} fill={`url(#${glossId})`} />
-                </g>
-                <g transform={anchored(geo.cx + geo.hw * 0.34, geo.cy + geo.hh * 0.34)}>
-                  <ellipse rx={geo.hw * 0.28} ry={geo.hh * 0.18} fill={`url(#${glossId})`} opacity="0.8" />
-                </g>
-                <rect x="0" y="0" width={geo.cw} height={geo.ch} fill="rgba(255,255,255,0.1)" />
-              </>
-            )}
-            {/* 담그기: 파우더 = 뽀얀 매트 베일 + 미세 입자 */}
-            {coating === 'powder' && (
-              <>
-                <rect x="0" y="0" width={geo.cw} height={geo.ch} fill="rgba(255,255,255,0.34)" />
-                {Array.from({ length: 90 }).map((_, i) => {
-                  const x = (i * 53) % geo.cw;
-                  const y = (i * 97) % geo.ch;
-                  return <circle key={`pw-${i}`} cx={x} cy={y} r="0.9" fill="rgba(255,255,255,0.7)" />;
-                })}
-              </>
-            )}
-
-            {/* 곰돌이 얼굴 */}
+          {/* 두 손으로 잡으면 본체 전체가 늘어나거나 눌리는 변형(기존 촉감 위에 얹음) */}
+          <g style={wrapStyle}>
+            {/* 곰돌이 귀(몸통 뒤에 그려서 자연스럽게 붙음) */}
             {shape === 'bear' && (
               <>
-                <g transform={anchored(geo.cx - 30, geo.cy - 6)}>
-                  <ellipse rx="7" ry="9" fill="#5b4636" />
+                <g transform={anchored(geo.cx - 66, earY)}>
+                  <circle r="36" fill={baseStop} stroke={strokeCol} strokeWidth="1" />
                 </g>
-                <g transform={anchored(geo.cx + 30, geo.cy - 6)}>
-                  <ellipse rx="7" ry="9" fill="#5b4636" />
-                </g>
-                <g transform={anchored(geo.cx, geo.cy + 24)}>
-                  <ellipse rx="33" ry="24" fill="rgba(255,255,255,0.5)" />
-                  <ellipse cy="-6" rx="8" ry="5.5" fill="#5b4636" />
+                <g transform={anchored(geo.cx + 66, earY)}>
+                  <circle r="36" fill={baseStop} stroke={strokeCol} strokeWidth="1" />
                 </g>
               </>
             )}
 
-            {/* 반짝이 */}
-            {sparkleInstances.map((p, i) => (
-              <g key={`sp-${i}`} transform={placed(p.x, p.y)}>
-                <path
-                  className="sparkle-svg"
-                  style={{ animationDelay: `${(i % 5) * 0.3}s` }}
-                  d="M0,-7 L1.8,-1.8 L7,0 L1.8,1.8 L0,7 L-1.8,1.8 L-7,0 L-1.8,-1.8 Z"
-                  fill="#fff"
-                />
-              </g>
-            ))}
+            {/* 본체 */}
+            <path d={pathD} fill={`url(#${bodyId})`} stroke={strokeCol} strokeWidth="1" />
 
-            {/* 토핑 */}
-            {toppingInstances.map((inst) => (
-              <g key={inst.key} transform={placed(inst.p.x, inst.p.y)}>
-                <ToppingShape type={inst.type} />
+            {/* 본체 모양으로 클립되는 내부 요소들 */}
+            <g clipPath={`url(#${clipId})`}>
+              {/* 아래쪽 그늘로 부피감 */}
+              <rect x="0" y="0" width={geo.cw} height={geo.ch} fill={`url(#shade-${uid})`} />
+              {/* 옥수수 알갱이 무늬 */}
+              {shape === 'corn' &&
+                Array.from({ length: 11 }).map((_, row) =>
+                  Array.from({ length: 5 }).map((__, col) => {
+                    const x = geo.cx - 60 + col * 30 + (row % 2 ? 15 : 0);
+                    const y = geo.cy - 110 + row * 21;
+                    return (
+                      <g key={`k-${row}-${col}`} transform={anchored(x, y)}>
+                        <ellipse rx="11" ry="9" fill="rgba(255,255,255,0.32)" stroke="rgba(0,0,0,0.06)" strokeWidth="1" />
+                      </g>
+                    );
+                  }),
+                )}
+
+              {/* 치즈 구멍 */}
+              {shape === 'cheese' && (
+                <>
+                  {[
+                    { x: -34, y: -28, r: 14 }, { x: 30, y: -38, r: 9 }, { x: 6, y: 18, r: 16 },
+                    { x: 44, y: 30, r: 10 }, { x: -30, y: 36, r: 8 },
+                  ].map((h, i) => (
+                    <g key={`h-${i}`} transform={anchored(geo.cx + h.x, geo.cy + h.y)}>
+                      <circle r={h.r} fill="rgba(0,0,0,0.16)" />
+                      <circle r={h.r} cy="-1.5" fill="rgba(0,0,0,0.10)" />
+                    </g>
+                  ))}
+                </>
+              )}
+
+              {/* 광택(파우더면 흐리게) */}
+              <g transform={anchored(geo.cx - geo.hw * 0.32, geo.cy - geo.hh * 0.42)} opacity={coating === 'powder' ? 0.22 : 1}>
+                <ellipse rx={geo.hw * 0.42} ry={geo.hh * 0.3} fill={`url(#${glossId})`} />
               </g>
-            ))}
+
+              {/* 담그기: 물 = 촉촉한 강한 윤기/반사 */}
+              {coating === 'water' && (
+                <>
+                  <g transform={anchored(geo.cx - geo.hw * 0.28, geo.cy - geo.hh * 0.42)}>
+                    <ellipse rx={geo.hw * 0.52} ry={geo.hh * 0.36} fill={`url(#${glossId})`} />
+                  </g>
+                  <g transform={anchored(geo.cx + geo.hw * 0.34, geo.cy + geo.hh * 0.34)}>
+                    <ellipse rx={geo.hw * 0.28} ry={geo.hh * 0.18} fill={`url(#${glossId})`} opacity="0.8" />
+                  </g>
+                  <rect x="0" y="0" width={geo.cw} height={geo.ch} fill="rgba(255,255,255,0.1)" />
+                </>
+              )}
+              {/* 담그기: 파우더 = 뽀얀 매트 베일 + 미세 입자 */}
+              {coating === 'powder' && (
+                <>
+                  <rect x="0" y="0" width={geo.cw} height={geo.ch} fill="rgba(255,255,255,0.34)" />
+                  {Array.from({ length: 90 }).map((_, i) => {
+                    const x = (i * 53) % geo.cw;
+                    const y = (i * 97) % geo.ch;
+                    return <circle key={`pw-${i}`} cx={x} cy={y} r="0.9" fill="rgba(255,255,255,0.7)" />;
+                  })}
+                </>
+              )}
+
+              {/* 곰돌이 얼굴 */}
+              {shape === 'bear' && (
+                <>
+                  <g transform={anchored(geo.cx - 30, geo.cy - 6)}>
+                    <ellipse rx="7" ry="9" fill="#5b4636" />
+                  </g>
+                  <g transform={anchored(geo.cx + 30, geo.cy - 6)}>
+                    <ellipse rx="7" ry="9" fill="#5b4636" />
+                  </g>
+                  <g transform={anchored(geo.cx, geo.cy + 24)}>
+                    <ellipse rx="33" ry="24" fill="rgba(255,255,255,0.5)" />
+                    <ellipse cy="-6" rx="8" ry="5.5" fill="#5b4636" />
+                  </g>
+                </>
+              )}
+
+              {/* 반짝이 */}
+              {sparkleInstances.map((p, i) => (
+                <g key={`sp-${i}`} transform={placed(p.x, p.y)}>
+                  <path
+                    className="sparkle-svg"
+                    style={{ animationDelay: `${(i % 5) * 0.3}s` }}
+                    d="M0,-7 L1.8,-1.8 L7,0 L1.8,1.8 L0,7 L-1.8,1.8 L-7,0 L-1.8,-1.8 Z"
+                    fill="#fff"
+                  />
+                </g>
+              ))}
+
+              {/* 토핑 */}
+              {toppingInstances.map((inst) => (
+                <g key={inst.key} transform={placed(inst.p.x, inst.p.y)}>
+                  <ToppingShape type={inst.type} />
+                </g>
+              ))}
+
+              {/* 왁스 코팅(겹수만큼 불투명. 색은 안 바꾸고 위에 덮는 레이어) */}
+              {waxActive && (
+                <>
+                  <rect x="0" y="0" width={geo.cw} height={geo.ch} fill={`rgba(245,240,228,${waxAlpha.toFixed(2)})`} />
+                  <g transform={anchored(geo.cx - geo.hw * 0.3, geo.cy - geo.hh * 0.4)}>
+                    <ellipse rx={geo.hw * 0.5} ry={geo.hh * 0.34} fill="rgba(255,255,255,0.25)" />
+                  </g>
+                </>
+              )}
+            </g>
+
+            {/* 옥수수 껍질잎(맨 아래) */}
+            {shape === 'corn' && (
+              <g transform={anchored(geo.cx, geo.cy + geo.hh - 6)}>
+                <ellipse cx="-15" cy="22" rx="12" ry="28" fill="#7cc85f" transform="rotate(20 -15 22)" />
+                <ellipse cx="15" cy="22" rx="12" ry="28" fill="#6cbf57" transform="rotate(-20 15 22)" />
+              </g>
+            )}
           </g>
 
-          {/* 옥수수 껍질잎(맨 아래) */}
-          {shape === 'corn' && (
-            <g transform={anchored(geo.cx, geo.cy + geo.hh - 6)}>
-              <ellipse cx="-15" cy="22" rx="12" ry="28" fill="#7cc85f" transform="rotate(20 -15 22)" />
-              <ellipse cx="15" cy="22" rx="12" ry="28" fill="#6cbf57" transform="rotate(-20 15 22)" />
+          {/* 왁스 깨짐 균열 플래시 */}
+          {fx && (
+            <g key={`crack-${fx.key}`} className="wax-crack" transform={`translate(${geo.cx}, ${geo.cy})`}>
+              {[0, 52, 104, 156, 208, 260, 312].map((deg) => {
+                const rad = (deg * Math.PI) / 180;
+                const r2 = Math.min(geo.hw, geo.hh) * 0.95;
+                return (
+                  <line
+                    key={deg}
+                    x1={Math.cos(rad) * 8}
+                    y1={Math.sin(rad) * 8}
+                    x2={Math.cos(rad) * r2}
+                    y2={Math.sin(rad) * r2}
+                    stroke="rgba(255,255,255,0.95)"
+                    strokeWidth="2.6"
+                    strokeLinecap="round"
+                  />
+                );
+              })}
             </g>
           )}
+
+          {/* 부서진 왁스 파편(깨진 뒤 남아 있음) */}
+          {isWaxBroken &&
+            waxDebris.map((d) => (
+              <g key={`db-${d.id}`} transform={`${placed(d.x, d.y)} rotate(${d.rot})`}>
+                <path d={shardPath(d.size)} fill="rgba(248,244,233,0.92)" stroke="rgba(206,196,176,0.75)" strokeWidth="0.7" />
+                <path d={shardPath(d.size * 0.5)} fill="rgba(255,255,255,0.5)" />
+              </g>
+            ))}
         </svg>
+
+        {/* 왁스 깨짐 ASMR 텍스트 */}
+        {fx && (
+          <span key={`asmr-${fx.key}`} className="asmr-pop">
+            {fx.asmr}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -61,6 +61,9 @@ export default function CompleteModal({ open, config, name, onNameChange, onRese
             sparkle={config.sparkle}
             translucency={config.translucency}
             coating={config.coating}
+            waxLayers={config.waxLayers}
+            isWaxBroken={config.isWaxBroken}
+            waxDebris={config.waxDebris}
             interactive={false}
             scale={0.82}
           />

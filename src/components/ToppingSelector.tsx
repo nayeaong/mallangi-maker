@@ -7,6 +7,8 @@ const TOPPINGS: ToppingOption[] = [
   { id: 'heart', name: '하트 크런치', emoji: '💖' },
   { id: 'strawberry', name: '딸기 크런치', emoji: '🍓' },
   { id: 'oreo', name: '오레오 크런치', emoji: '🍪' },
+  { id: 'pearl', name: '진주 크런치', emoji: '🫧' },
+  { id: 'fruitring', name: '후르츠링 크런치', emoji: '🍩' },
 ];
 
 interface Props {
