@@ -19,6 +19,8 @@ html,
 body {
   margin: 0;
   padding: 0;
+  width: 100%;
+  overflow-x: hidden; /* 말랑이를 늘여도 가로 스크롤이 생기지 않게 */
 }
 
 body {
@@ -697,15 +699,73 @@ input[type='color'] {
   gap: 10px;
 }
 
-/* ===== 반응형 ===== */
-@media (max-width: 480px) {
-  .title {
-    font-size: 24px;
+/* ===== 반응형 (핸드폰) ===== */
+@media (max-width: 560px) {
+  /* 화면을 꽉 채우도록 여백 최소화 */
+  .app {
+    padding: 14px 10px 44px;
   }
+  .title {
+    font-size: 23px;
+  }
+  .subtitle {
+    font-size: 13px;
+  }
+  .card {
+    border-radius: 22px;
+    padding: 16px 14px;
+  }
+
+  /* 옵션: 한 줄에 한 카드(전체 폭)로 쌓아 폰 비율에 맞춤 */
   .options {
     flex-direction: column;
+    gap: 12px;
+  }
+  .options-col {
+    gap: 12px;
+  }
+
+  /* 카드 안 칩은 3열로 채워 가로폭을 가득 쓰고 높이는 낮게 */
+  .chip-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .chip {
+    padding: 10px 4px;
+    border-radius: 15px;
+  }
+  .chip-emoji {
+    font-size: 24px;
+  }
+  .chip-name {
+    font-size: 11px;
+  }
+  .chip-desc {
+    display: none; /* 좁은 화면에선 설명 숨겨 깔끔하게 */
+  }
+
+  /* 미리보기는 줄이지 않고 폭에 꽉 차게 */
+  .preview-card {
+    padding: 14px;
   }
   .stage {
-    transform: scale(0.92);
+    transform: none;
+    width: 100%;
+  }
+  .blob-canvas {
+    margin: 0 auto;
+  }
+
+  /* 완성/초기화 버튼도 폭에 맞게 */
+  .complete-btn {
+    font-size: 16px;
+    padding: 15px;
+  }
+}
+
+/* 아주 좁은 화면(소형 폰) */
+@media (max-width: 360px) {
+  .chip-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
