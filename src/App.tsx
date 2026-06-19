@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import MallangiPreview from './components/MallangiPreview';
 import ShapeSelector from './components/ShapeSelector';
 import ColorPicker from './components/ColorPicker';
@@ -50,28 +50,15 @@ export default function App() {
     setWaxDebris(makeWaxDebris(waxLayers));
   };
 
-  // ── 모달 / 이름 / 안내 메시지 ──
+  // ── 모달 / 이름 ──
   const [isModalOpen, setModalOpen] = useState(false);
   const [mallangiName, setMallangiName] = useState('');
-  const [toast, setToast] = useState('');
-  const toastTimer = useRef<number | undefined>(undefined);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(''), 2200);
-  };
-
-  // 토핑 토글 (최대 2개). 초과 시 안내 메시지 표시
+  // 토핑 토글 (개수 제한 없음)
   const toggleTopping = (id: ToppingId) => {
-    setSelectedToppings((prev) => {
-      if (prev.includes(id)) return prev.filter((t) => t !== id);
-      if (prev.length >= 4) {
-        showToast('토핑은 최대 4개까지 넣을 수 있어요!');
-        return prev;
-      }
-      return [...prev, id];
-    });
+    setSelectedToppings((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
+    );
   };
 
   // 모든 옵션을 초기 상태로 되돌리고 모달 닫기
@@ -153,12 +140,12 @@ export default function App() {
             onTranslucencyChange={setTranslucency}
           />
           <ToppingSelector value={selectedToppings} onToggle={toggleTopping} />
-          <WaxControl value={waxLayers} onChange={changeWax} />
         </div>
         <div className="options-col">
           <ColorPicker value={selectedColor} onChange={setSelectedColor} />
           <ViscositySlider value={viscosity} onChange={setViscosity} />
           <CoatingSelector value={coating} onChange={setCoating} />
+          <WaxControl value={waxLayers} onChange={changeWax} />
         </div>
       </div>
 
@@ -170,9 +157,6 @@ export default function App() {
           🔄 초기화
         </button>
       </div>
-
-      {/* 안내 토스트 */}
-      {toast && <div className="toast">{toast}</div>}
 
       <CompleteModal
         open={isModalOpen}

@@ -8,7 +8,7 @@ import {
   type PointerEvent,
 } from 'react';
 import type { CoatingId, ShapeId, ToppingId, WaxDebrisPiece } from '../types';
-import { playCrunch } from '../crunch';
+import { playCrunch, playWaxBreak } from '../crunch';
 
 interface Props {
   shape: ShapeId;
@@ -400,7 +400,7 @@ export default function MallangiPreview({
   };
 
   const toppingInstances = toppings.flatMap((t, ti) =>
-    [0, 1, 2].map((k) => ({ type: t, key: `${t}-${k}`, p: POSITIONS[ti * 3 + k] })),
+    [0, 1, 2].map((k) => ({ type: t, key: `${t}-${k}`, p: POSITIONS[(ti * 3 + k) % POSITIONS.length] })),
   );
   const sparkleInstances = SPARKLE_POSITIONS.slice(0, sparkle);
 
@@ -431,7 +431,7 @@ export default function MallangiPreview({
   // 두 손 압축으로 왁스가 깨질 때
   const triggerBreak = () => {
     onWaxBreak?.();
-    playCrunch(Math.min(6, Math.max(2, Math.round(waxLayers / 1.5)))); // 기존 효과음 재사용
+    playWaxBreak(waxLayers); // "뿌짝" — 겹수↑ 일수록 더 묵직하게
     const words = ['파삭', '쩍', '콰작', '우두둑'];
     const w = words[Math.floor(Math.random() * words.length)];
     setFx({ asmr: w, key: fxKeyRef.current++ });

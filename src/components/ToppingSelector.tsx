@@ -20,7 +20,7 @@ export default function ToppingSelector({ value, onToggle }: Props) {
   return (
     <section className="card option">
       <h2 className="option-title">
-        ✨ 토핑 <span className="count-badge">{value.length}/4</span>
+        ✨ 토핑 <span className="count-badge">{value.length}</span>
       </h2>
       <div className="chip-grid">
         {TOPPINGS.map((t) => {

@@ -65,3 +65,84 @@ export function playCrunch(intensity: number) {
     src.stop(t + dur);
   }
 }
+
+// 왁스 깨짐 "뿌짝" 소리. 겹수(layers)가 많을수록 더 낮고 묵직하며 되직하게 들린다.
+export function playWaxBreak(layers: number) {
+  if (layers <= 0) return;
+  const ac = getCtx();
+  if (ac.state === 'suspended') void ac.resume();
+  const now = ac.currentTime;
+  const heavy = Math.min(1, layers / 10); // 0.1~1 (두꺼울수록 묵직)
+
+  // ── 묵직한 몸통(뿌): 저역 노이즈 — 겹수↑ → 더 먹먹하고 길고 큼 ──
+  const bodyDur = 0.14 + layers * 0.022;
+  const bodyLen = Math.max(1, Math.floor(ac.sampleRate * bodyDur));
+  const buf = ac.createBuffer(1, bodyLen, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bodyLen; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bodyLen, 1.6);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 2200 - layers * 150; // 겹수↑ → 더 묵직
+  lp.Q.value = 0.7;
+  const bg = ac.createGain();
+  const bodyGain = 0.18 + heavy * 0.4;
+  bg.gain.setValueAtTime(0, now);
+  bg.gain.linearRampToValueAtTime(bodyGain, now + 0.006);
+  bg.gain.exponentialRampToValueAtTime(0.0001, now + bodyDur);
+  src.connect(lp);
+  lp.connect(bg);
+  bg.connect(ac.destination);
+  src.start(now);
+  src.stop(now + bodyDur);
+
+  // ── 저음 thud(되직한 무게감): 겹수↑ → 더 낮은 음 ──
+  const osc = ac.createOscillator();
+  osc.type = 'sine';
+  const f0 = 150 - layers * 8; // 1→142Hz, 10→70Hz
+  osc.frequency.setValueAtTime(f0 * 1.6, now);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(40, f0 * 0.6), now + bodyDur * 0.9);
+  const og = ac.createGain();
+  const thudGain = 0.1 + heavy * 0.5;
+  og.gain.setValueAtTime(0, now);
+  og.gain.linearRampToValueAtTime(thudGain, now + 0.008);
+  og.gain.exponentialRampToValueAtTime(0.0001, now + bodyDur);
+  osc.connect(og);
+  og.connect(ac.destination);
+  osc.start(now);
+  osc.stop(now + bodyDur);
+
+  // ── 날카로운 깨짐(짝): 짧고 밝은 노이즈 그레인 ──
+  const grains = 3 + Math.round(layers * 0.5);
+  const hp = ac.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 1400;
+  hp.connect(ac.destination);
+  for (let i = 0; i < grains; i++) {
+    const t = now + 0.005 + i * (0.01 + Math.random() * 0.012);
+    const dur = 0.02 + Math.random() * 0.03;
+    const len = Math.max(1, Math.floor(ac.sampleRate * dur));
+    const b = ac.createBuffer(1, len, ac.sampleRate);
+    const d = b.getChannelData(0);
+    for (let j = 0; j < len; j++) d[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / len, 2);
+    const s = ac.createBufferSource();
+    s.buffer = b;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2200 + Math.random() * 3500;
+    bp.Q.value = 1.4;
+    const g = ac.createGain();
+    const peak = (0.12 + heavy * 0.14) * (0.6 + Math.random() * 0.6);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(bp);
+    bp.connect(g);
+    g.connect(hp);
+    s.start(t);
+    s.stop(t + dur);
+  }
+}
