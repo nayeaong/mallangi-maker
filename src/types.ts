@@ -19,6 +19,7 @@ export interface WaxDebrisPiece {
   y: number; // 0~100 (세로 퍼센트 위치)
   size: number;
   rot: number;
+  seed: number; // 불규칙한 조각 모양 생성용 시드
 }
 
 // 담그기(마감) 종류: 없음 / 물 / 파우더

@@ -20,6 +20,7 @@ function makeWaxDebris(layers: number): WaxDebrisPiece[] {
     y: 8 + Math.random() * 84,
     size: base * (0.6 + Math.random() * 0.9),
     rot: Math.random() * 360,
+    seed: Math.floor(Math.random() * 4294967296),
   }));
 }
 

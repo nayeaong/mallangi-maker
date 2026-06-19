@@ -167,9 +167,30 @@ function toPath(pts: Pt[]): string {
   return d + 'Z';
 }
 
-// 왁스 파편 한 조각의 거친 다각형 path
-function shardPath(s: number): string {
-  return `M${(-s).toFixed(1)},${(-s * 0.6).toFixed(1)} L${(s * 0.8).toFixed(1)},${(-s).toFixed(1)} L${s.toFixed(1)},${(s * 0.7).toFixed(1)} L${(-s * 0.7).toFixed(1)},${s.toFixed(1)} Z`;
+// 시드 기반 의사난수(렌더마다 같은 모양이 나오도록 결정적)
+function mulberry32(a: number) {
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// 딱딱한 왁스가 깨진 듯한 불규칙·각진 파편 polygon path (시드별로 모양이 다름)
+function shardPath(s: number, seed: number): string {
+  const rnd = mulberry32(seed);
+  const verts = 5 + Math.floor(rnd() * 3); // 5~7개의 뾰족한 꼭짓점
+  let d = '';
+  for (let i = 0; i < verts; i++) {
+    const ang = (i / verts) * Math.PI * 2 + (rnd() - 0.5) * 0.7; // 각도에 들쭉날쭉
+    const r = s * (0.45 + rnd() * 0.75); // 반경도 들쭉날쭉 → 뾰족한 결정형
+    const x = Math.cos(ang) * r;
+    const y = Math.sin(ang) * r;
+    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `;
+  }
+  return d + 'Z';
 }
 
 // 토핑 한 조각 (SVG 그룹). 중심(0,0) 기준으로 그린다.
@@ -773,8 +794,8 @@ export default function MallangiPreview({
           {isWaxBroken &&
             waxDebris.map((d) => (
               <g key={`db-${d.id}`} transform={`${placed(d.x, d.y)} rotate(${d.rot})`}>
-                <path d={shardPath(d.size)} fill="rgba(248,244,233,0.92)" stroke="rgba(206,196,176,0.75)" strokeWidth="0.7" />
-                <path d={shardPath(d.size * 0.5)} fill="rgba(255,255,255,0.5)" />
+                <path d={shardPath(d.size, d.seed)} fill="rgba(248,244,233,0.92)" stroke="rgba(206,196,176,0.75)" strokeWidth="0.7" strokeLinejoin="round" />
+                <path d={shardPath(d.size * 0.5, d.seed)} fill="rgba(255,255,255,0.5)" />
               </g>
             ))}
         </svg>
