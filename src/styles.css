@@ -719,9 +719,11 @@ input[type='color'] {
   /* 옵션: 한 줄에 한 카드(전체 폭)로 쌓아 폰 비율에 맞춤 */
   .options {
     flex-direction: column;
+    align-items: stretch; /* 컬럼을 화면 전체 폭으로 펼쳐 가운데 정렬되게 */
     gap: 12px;
   }
   .options-col {
+    width: 100%;
     gap: 12px;
   }
 
