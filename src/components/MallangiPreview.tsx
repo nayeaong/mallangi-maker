@@ -303,6 +303,7 @@ export default function MallangiPreview({
   const ratioRef = useRef({ sx: 1, sy: 1 }); // 화면px → 좌표계 변환비
   const rafRef = useRef(0);
   const brokeFiredRef = useRef(false);
+  const lastDownRef = useRef(0); // 더블탭(빠르게 두 번 누르기) 감지용
   const fxKeyRef = useRef(1);
   const fxTimer = useRef<number | undefined>(undefined);
   const [fx, setFx] = useState<{ asmr: string; key: number } | null>(null);
@@ -476,7 +477,7 @@ export default function MallangiPreview({
     m.stretch = Math.max(-0.5, Math.min(0.9, ratio)) * softness * waxStretchScale;
     // 압축(squeeze)이 임계를 넘으면 왁스가 깨짐
     const squeeze = m.baseDist - d;
-    if (onWaxBreak && waxLayers >= 1 && !isWaxBroken && !brokeFiredRef.current && squeeze > Math.max(40, m.baseDist * 0.16)) {
+    if (onWaxBreak && waxLayers >= 1 && !isWaxBroken && !brokeFiredRef.current && squeeze > Math.max(22, m.baseDist * 0.1)) {
       brokeFiredRef.current = true;
       triggerBreak();
     }
@@ -519,6 +520,13 @@ export default function MallangiPreview({
     cancelAnimationFrame(rafRef.current);
     velRef.current = { x: 0, y: 0 };
     playCrunch(toppings.length); // 만질 때마다 콰작
+    // 어디서나(마우스 포함) 깨뜨릴 수 있게: 빠르게 두 번 누르면(더블탭/더블클릭) 왁스가 깨진다
+    const downAt = performance.now();
+    if (onWaxBreak && waxLayers >= 1 && !isWaxBroken && !brokeFiredRef.current && downAt - lastDownRef.current < 400) {
+      brokeFiredRef.current = true;
+      triggerBreak();
+    }
+    lastDownRef.current = downAt;
     if (pointersRef.current.size >= 2) {
       // 두 손 모드 진입
       draggingRef.current = false;

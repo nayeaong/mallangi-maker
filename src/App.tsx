@@ -124,7 +124,7 @@ export default function App() {
         />
         {/* 왁스가 발려 있고 아직 안 깨졌으면 안내 말풍선 */}
         {waxLayers >= 1 && !isWaxBroken && (
-          <div className="wax-hint">두 손으로 말랑이를 꾹 눌러 뿌셔보세요! 🙌</div>
+          <div className="wax-hint">두 손으로 꾹 누르거나, 빠르게 두 번 톡톡 쳐서 뿌셔보세요! 🙌</div>
         )}
         <p className="preview-hint">👆 말랑이를 끌어당겨 만져보세요!</p>
       </main>
